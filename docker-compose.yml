@@ -1,8 +1,27 @@
 services:
+  # Servicio de inicialización - Configura Rclone automáticamente desde env vars
+  init-r2:
+    image: alpine:latest
+    container_name: vaultwarden-init-r2
+    restart: "no"
+    entrypoint: /scripts/init-rclone.sh
+    environment:
+      - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
+      - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
+      - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+    volumes:
+      - vaultwarden-rclone:/config/rclone
+      - ./scripts/init-rclone.sh:/scripts/init-rclone.sh:ro
+    networks:
+      - vaultwarden-network
+
   vaultwarden:
     image: vaultwarden/server:latest
     container_name: vaultwarden
     restart: unless-stopped
+    depends_on:
+      init-r2:
+        condition: service_completed_successfully
     environment:
       # Configuración principal
       - DOMAIN=${DOMAIN:-https://vault.example.com}

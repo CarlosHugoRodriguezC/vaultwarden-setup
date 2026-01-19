@@ -50,77 +50,80 @@ Configuración de Vaultwarden (servidor de Bitwarden auto-hospedado) optimizada 
 
 ## 🚀 Despliegue en Dokploy
 
-### 1. Crear proyecto en Dokploy
+### Flujo automático completamente integrado
+
+El `docker-compose.yml` incluye un servicio `init-r2` que configura Rclone automáticamente desde las variables de entorno. **No necesitas ejecutar scripts manualmente**.
+
+### Paso 1: Crear proyecto en Dokploy
 
 1. Accede a tu panel de Dokploy
 2. Crea un nuevo proyecto: **Vaultwarden**
 3. Añade un servicio de tipo **Compose**
 4. Sube o pega el contenido del `docker-compose.yml`
 
-> **Nota para Dokploy**: Si necesitas integrar con la red `dokploy-network` existente, edita el `docker-compose.yml` y cambia `vaultwarden-network` por `dokploy-network` y marca la red como `external: true`
+### Paso 2: Configurar Variables en Dokploy
 
-### Opción Rápida (Local o VPS):
+En Dokploy → **Environment**, añade:
+
+```env
+# Requeridas
+DOMAIN=https://vault.tudominio.com
+ADMIN_TOKEN=<genera con: openssl rand -base64 48>
+CLOUDFLARE_TUNNEL_TOKEN=<obtén en Cloudflare Zero Trust>
+
+# Recomendadas
+SIGNUPS_ALLOWED=false
+BACKUP_ZIP_PASSWORD=<genera con: openssl rand -base64 32>
+TZ=America/Mexico_City
+
+# Cloudflare R2 (si usas backups remotos)
+R2_ACCOUNT_ID=<tu account id>
+R2_ACCESS_KEY_ID=<obtén en Cloudflare R2>
+R2_SECRET_ACCESS_KEY=<obtén en Cloudflare R2>
+R2_BUCKET_NAME=vaultwarden-backups
+```
+
+### Paso 3: Desplegar
+
+Click en **Deploy** en Dokploy. El flujo automático:
+
+```
+1. init-r2 configura Rclone desde env vars
+2. Vaultwarden espera a que init-r2 complete
+3. Vaultwarden inicia y se conecta a R2
+4. Backup inicia y usa la configuración de Rclone
+```
+
+**No necesitas ejecutar nada adicional** - todo ocurre automáticamente en el docker-compose.yml.
+
+---
+
+## 💻 Opción Rápida (Local o VPS)
 
 ```bash
 # Clonar repositorio
 git clone https://github.com/CarlosHugoRodriguezC/vaultwarden-setup.git
 cd vaultwarden-setup
 
-# Ejecutar start.sh (configura automáticamente todo)
+# Ejecutar start.sh
 ./start.sh
 ```
 
-El script `start.sh` hace automáticamente:
+El script `start.sh`:
 - ✅ Crea `.env` desde `.env.example` si no existe
 - ✅ Genera un `ADMIN_TOKEN` seguro
-- ✅ Configura Cloudflare R2 automáticamente
 - ✅ Inicia todos los servicios
 
-### 2. Configurar Variables de Entorno
+## 🔧 Cómo funciona la inicialización automática de R2
 
-En Dokploy, ve a **Environment** y configura:
+El `docker-compose.yml` incluye un servicio `init-r2` que:
 
-```env
-# Requeridas
-DOMAIN=https://vault.tudominio.com
-ADMIN_TOKEN=<genera con: openssl rand -base64 48>
-CLOUDFLARE_TUNNEL_TOKEN=<obtén en Cloudflare>
+1. **Comprueba credenciales de R2** en variables de entorno
+2. **Genera rclone.conf** automáticamente desde `/scripts/init-rclone.sh`
+3. **Monta el archivo** en el volumen `vaultwarden-rclone`
+4. **Los otros servicios esperan** a que `init-r2` complete
 
-# R2 (si usas backups remotos)
-R2_ACCOUNT_ID=
-R2_ACCESS_KEY_ID=
-R2_SECRET_ACCESS_KEY=
-R2_BUCKET_NAME=vaultwarden-backups
-
-# Recomendadas
-SIGNUPS_ALLOWED=false
-BACKUP_ZIP_PASSWORD=<contraseña-segura-para-backups>
-TZ=America/Mexico_City
-```
-
-> **Para start.sh local**: El script configura automáticamente R2 si están presentes las credenciales
-
-### 3. Crear Red de Docker
-
-Para desarrollo local, la red se crea automáticamente. Para Dokploy:
-
-```bash
-# Si Dokploy requiere integración con su red existente
-docker network create dokploy-network
-```
-
-Luego edita `docker-compose.yml`:
-```yaml
-networks:
-  dokploy-network:
-    external: true
-```
-
-Y en el `docker-compose.yml` cambia todas las referencias de `vaultwarden-network` a `dokploy-network`.
-
-### 4. Desplegar
-
-Click en **Deploy** en Dokploy.
+Ventaja: Sin scripts externos, todo está integrado en `docker-compose.yml`
 
 ## 🔐 Configuración de Cloudflare Zero Trust
 
