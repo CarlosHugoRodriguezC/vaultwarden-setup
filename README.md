@@ -57,6 +57,8 @@ Configuración de Vaultwarden (servidor de Bitwarden auto-hospedado) optimizada 
 3. Añade un servicio de tipo **Compose**
 4. Sube o pega el contenido del `docker-compose.yml`
 
+> **Nota para Dokploy**: Si necesitas integrar con la red `dokploy-network` existente, edita el `docker-compose.yml` y cambia `vaultwarden-network` por `dokploy-network` y marca la red como `external: true`
+
 ### 2. Configurar Variables de Entorno
 
 En Dokploy, ve a **Environment** y configura:
@@ -72,15 +74,23 @@ BACKUP_ZIP_PASSWORD=<contraseña-segura-para-backups>
 TZ=America/Mexico_City
 ```
 
-### 3. Crear Red de Dokploy
+### 3. Crear Red de Docker
 
-Antes de desplegar, asegúrate de que existe la red `dokploy-network`:
+Para desarrollo local, la red se crea automáticamente. Para Dokploy:
 
 ```bash
+# Si Dokploy requiere integración con su red existente
 docker network create dokploy-network
 ```
 
-> **Nota**: Dokploy normalmente ya tiene esta red creada.
+Luego edita `docker-compose.yml`:
+```yaml
+networks:
+  dokploy-network:
+    external: true
+```
+
+Y en el `docker-compose.yml` cambia todas las referencias de `vaultwarden-network` a `dokploy-network`.
 
 ### 4. Desplegar
 

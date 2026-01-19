@@ -23,27 +23,27 @@ services:
       - IP_HEADER=CF-Connecting-IP
       - ROCKET_ADDRESS=0.0.0.0
       - ROCKET_PORT=80
-      # SMTP (opcional)
-      - SMTP_HOST=${SMTP_HOST}
-      - SMTP_FROM=${SMTP_FROM}
+      # SMTP (opcional - NO configurar si no lo usas para evitar errores)
+      - SMTP_HOST=${SMTP_HOST:-localhost}
+      - SMTP_FROM=${SMTP_FROM:-noreply@localhost}
       - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Vaultwarden}
       - SMTP_SECURITY=${SMTP_SECURITY:-starttls}
       - SMTP_PORT=${SMTP_PORT:-587}
-      - SMTP_USERNAME=${SMTP_USERNAME}
-      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_USERNAME=${SMTP_USERNAME:-}
+      - SMTP_PASSWORD=${SMTP_PASSWORD:-}
       - SMTP_TIMEOUT=${SMTP_TIMEOUT:-15}
     volumes:
       - vaultwarden-data:/data
     expose:
       - "80"
     networks:
-      - dokploy-network
+      - vaultwarden-network
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:80/alive"]
+      test: ["CMD", "test", "-f", "/data/db.sqlite3"]
       interval: 30s
       timeout: 10s
-      retries: 3
-      start_period: 10s
+      retries: 5
+      start_period: 30s
 
   cloudflared:
     image: cloudflare/cloudflared:latest
@@ -53,11 +53,12 @@ services:
     environment:
       - TZ=${TZ:-America/Mexico_City}
     networks:
-      - dokploy-network
+      - vaultwarden-network
     depends_on:
-      - vaultwarden
+      vaultwarden:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/ready"]
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/ready" ]
       interval: 30s
       timeout: 10s
       retries: 3
@@ -92,7 +93,7 @@ services:
       - vaultwarden-backups:/bitwarden/backup
       - vaultwarden-rclone:/config/rclone
     networks:
-      - dokploy-network
+      - vaultwarden-network
 
 volumes:
   vaultwarden-data:
@@ -103,5 +104,5 @@ volumes:
     driver: local
 
 networks:
-  dokploy-network:
-    external: true
+  vaultwarden-network:
+    driver: bridge
