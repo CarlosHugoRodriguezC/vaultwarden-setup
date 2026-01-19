@@ -13,18 +13,23 @@ Configuración de Vaultwarden (servidor de Bitwarden auto-hospedado) optimizada 
 ## 🏗️ Arquitectura
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                    Cloudflare Zero Trust                         │
-│  ┌─────────────────────────────────────────────────────────────┐│
-│  │                    Access Application                        ││
-│  │         vault.internal.example.com                           ││
-│  └─────────────────────────────────────────────────────────────┘│
-│                              │                                   │
-│                    Cloudflare Tunnel                             │
-└──────────────────────────────┬──────────────────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                    Cloudflare Zero Trust                             │
+│  ┌────────────────────────────────────────────────────────────────┐│
+│  │                    Access Application                          ││
+│  │         vault.tudominio.com                                    ││
+│  └────────────────────────────────────────────────────────────────┘│
+│                              │                                      │
+│                    Cloudflare Tunnel                                │
+│                    (via cloudflared)                                │
+└──────────────────────────────┬───────────────────────────────────────┘
                                │
                     ┌──────────▼──────────┐
                     │      Dokploy        │
+                    │  ┌────────────────┐ │
+                    │  │ Cloudflared    │ │
+                    │  │ (Tunnel Agent) │ │
+                    │  └────────────────┘ │
                     │  ┌────────────────┐ │
                     │  │  Vaultwarden   │ │
                     │  │   (puerto 80)  │ │
@@ -32,6 +37,7 @@ Configuración de Vaultwarden (servidor de Bitwarden auto-hospedado) optimizada 
                     │  ┌────────────────┐ │
                     │  │    Backup      │ │
                     │  │   Service      │ │
+                    │  │    (→ R2)      │ │
                     │  └────────────────┘ │
                     └─────────────────────┘
                                ▲
@@ -89,17 +95,17 @@ Click en **Deploy** en Dokploy.
 3. Crea un nuevo tunnel: `vaultwarden-tunnel`
 4. Copia el token del tunnel
 
-### Paso 2: Configurar Tunnel en tu Servidor
+### Paso 2: Configurar Tunnel en Dokploy
 
-Puedes añadir cloudflared como servicio adicional en Dokploy o ejecutarlo directamente:
+El servicio `cloudflared` ya está incluido en el `docker-compose.yml`. Solo necesitas:
 
-```bash
-# Opción 1: Docker run
-docker run -d --name cloudflared \
-  --network dokploy-network \
-  --restart unless-stopped \
-  cloudflare/cloudflared:latest tunnel run \
-  --token <TU_TUNNEL_TOKEN>
+1. En Dokploy, ve a **Environment** variables
+2. Añade: `CLOUDFLARE_TUNNEL_TOKEN=<tu_token_aqui>`
+3. El tunnel se iniciará automáticamente con el resto de servicios
+
+```env
+# En Dokploy Environment:
+CLOUDFLARE_TUNNEL_TOKEN=eyJhIjoiXXXXXXXX...
 ```
 
 ### Paso 3: Configurar Public Hostname
@@ -111,6 +117,8 @@ En el dashboard de Cloudflare Zero Trust:
    - **Subdomain**: `vault`
    - **Domain**: `tudominio.com`
    - **Service**: `http://vaultwarden:80`
+   
+   **Nota**: Usa `vaultwarden` como hostname interno (nombre del servicio en la red Docker)
 
 ### Paso 4: Configurar Access Application
 

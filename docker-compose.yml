@@ -45,6 +45,24 @@ services:
       retries: 3
       start_period: 10s
 
+  cloudflared:
+    image: cloudflare/cloudflared:latest
+    container_name: cloudflared
+    restart: unless-stopped
+    command: tunnel run --token ${CLOUDFLARE_TUNNEL_TOKEN}
+    environment:
+      - TZ=${TZ:-America/Mexico_City}
+    networks:
+      - dokploy-network
+    depends_on:
+      - vaultwarden
+    healthcheck:
+      test: ["CMD", "wget", "--quiet", "--tries=1", "--spider", "http://127.0.0.1:8080/ready"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
   vaultwarden-backup:
     image: ttionya/vaultwarden-backup:latest
     container_name: vaultwarden-backup
