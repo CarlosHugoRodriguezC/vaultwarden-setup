@@ -1,0 +1,14 @@
+# Environment variables
+.env
+
+# Vaultwarden data
+vw-data/
+
+# Backups
+vw-backups/
+
+# Logs
+*.log
+
+# Docker
+.docker/

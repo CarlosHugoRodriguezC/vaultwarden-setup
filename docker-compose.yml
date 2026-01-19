@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  vaultwarden:
+    image: vaultwarden/server:latest
+    container_name: vaultwarden
+    restart: unless-stopped
+    environment:
+      - DOMAIN=${DOMAIN:-https://vault.example.com}
+      - SIGNUPS_ALLOWED=${SIGNUPS_ALLOWED:-true}
+      - INVITATIONS_ALLOWED=${INVITATIONS_ALLOWED:-true}
+      - SHOW_PASSWORD_HINT=${SHOW_PASSWORD_HINT:-false}
+      - WEBSOCKET_ENABLED=true
+      - SENDS_ALLOWED=${SENDS_ALLOWED:-true}
+      - WEB_VAULT_ENABLED=${WEB_VAULT_ENABLED:-true}
+      - LOG_LEVEL=${LOG_LEVEL:-info}
+      - EXTENDED_LOGGING=${EXTENDED_LOGGING:-true}
+      - LOG_FILE=/data/vaultwarden.log
+      # Admin Panel
+      - ADMIN_TOKEN=${ADMIN_TOKEN}
+      # Database (SQLite por defecto)
+      - DATABASE_URL=/data/db.sqlite3
+      # SMTP (opcional)
+      - SMTP_HOST=${SMTP_HOST}
+      - SMTP_FROM=${SMTP_FROM}
+      - SMTP_FROM_NAME=${SMTP_FROM_NAME:-Vaultwarden}
+      - SMTP_SECURITY=${SMTP_SECURITY:-starttls}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USERNAME=${SMTP_USERNAME}
+      - SMTP_PASSWORD=${SMTP_PASSWORD}
+      - SMTP_TIMEOUT=${SMTP_TIMEOUT:-15}
+    volumes:
+      - ./vw-data:/data
+    ports:
+      - "${VAULTWARDEN_PORT:-8080}:80"
+    networks:
+      - vaultwarden-network
+
+  vaultwarden-backup:
+    image: bruceforce/vaultwarden-backup:latest
+    container_name: vaultwarden-backup
+    restart: unless-stopped
+    depends_on:
+      - vaultwarden
+    environment:
+      - VW_BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}
+      - VW_BACKUP_KEEP_DAYS=${BACKUP_KEEP_DAYS:-14}
+      - TIMESTAMP=${BACKUP_TIMESTAMP:-true}
+      - TZ=${TZ:-America/Mexico_City}
+      - UID=1000
+      - GID=1000
+      # Opciones adicionales de backup
+      - DELETE_AFTER=${DELETE_AFTER:-0}
+      - BACKUP_ON_STARTUP=${BACKUP_ON_STARTUP:-true}
+    volumes:
+      - ./vw-data:/data:ro
+      - ./vw-backups:/backups
+    networks:
+      - vaultwarden-network
+
+networks:
+  vaultwarden-network:
+    driver: bridge
