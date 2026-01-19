@@ -13,5 +13,5 @@ vw-backups/
 # Docker
 .docker/
 
-# Rclone config (contains credentials)
-rclone/
+# Rclone config (contains credentials) - now uses Docker volume
+rclone.conf
