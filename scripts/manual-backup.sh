@@ -1,6 +1,6 @@
 #!/bin/bash
 
-# Script para crear un backup manual de Vaultwarden
+# Script para crear un backup manual de Vaultwarden (Dokploy)
 # Uso: ./manual-backup.sh
 
 set -e
@@ -13,9 +13,9 @@ NC='\033[0m' # No Color
 echo -e "${YELLOW}Creando backup manual de Vaultwarden...${NC}"
 
 # Ejecutar backup en el contenedor
-cd .. && docker compose exec vaultwarden-backup /backup.sh
+docker exec vaultwarden-backup /app/backup.sh
 
 echo -e "${GREEN}✓ Backup creado exitosamente${NC}"
 echo ""
 echo "Backups disponibles:"
-ls -lh vw-backups/*.tar.gz 2>/dev/null || echo "Error listando backups"
+docker exec vaultwarden-backup ls -lh /bitwarden/backup/ 2>/dev/null || echo "Error listando backups"

@@ -1,7 +1,7 @@
 # Environment variables
 .env
 
-# Vaultwarden data
+# Vaultwarden data (using Docker volumes, but just in case)
 vw-data/
 
 # Backups
@@ -12,3 +12,6 @@ vw-backups/
 
 # Docker
 .docker/
+
+# Rclone config (contains credentials)
+rclone/

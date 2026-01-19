@@ -1,13 +1,12 @@
-version: '3.8'
-
 services:
   vaultwarden:
     image: vaultwarden/server:latest
     container_name: vaultwarden
     restart: unless-stopped
     environment:
+      # Configuración principal
       - DOMAIN=${DOMAIN:-https://vault.example.com}
-      - SIGNUPS_ALLOWED=${SIGNUPS_ALLOWED:-true}
+      - SIGNUPS_ALLOWED=${SIGNUPS_ALLOWED:-false}
       - INVITATIONS_ALLOWED=${INVITATIONS_ALLOWED:-true}
       - SHOW_PASSWORD_HINT=${SHOW_PASSWORD_HINT:-false}
       - WEBSOCKET_ENABLED=true
@@ -20,6 +19,10 @@ services:
       - ADMIN_TOKEN=${ADMIN_TOKEN}
       # Database (SQLite por defecto)
       - DATABASE_URL=/data/db.sqlite3
+      # Cloudflare Zero Trust - IPs de confianza
+      - IP_HEADER=CF-Connecting-IP
+      - ROCKET_ADDRESS=0.0.0.0
+      - ROCKET_PORT=80
       # SMTP (opcional)
       - SMTP_HOST=${SMTP_HOST}
       - SMTP_FROM=${SMTP_FROM}
@@ -30,34 +33,48 @@ services:
       - SMTP_PASSWORD=${SMTP_PASSWORD}
       - SMTP_TIMEOUT=${SMTP_TIMEOUT:-15}
     volumes:
-      - ./vw-data:/data
-    ports:
-      - "${VAULTWARDEN_PORT:-8080}:80"
+      - vaultwarden-data:/data
+    expose:
+      - "80"
     networks:
-      - vaultwarden-network
+      - dokploy-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:80/alive"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
 
   vaultwarden-backup:
-    image: bruceforce/vaultwarden-backup:latest
+    image: ttionya/vaultwarden-backup:latest
     container_name: vaultwarden-backup
     restart: unless-stopped
     depends_on:
-      - vaultwarden
+      vaultwarden:
+        condition: service_healthy
     environment:
-      - VW_BACKUP_SCHEDULE=${BACKUP_SCHEDULE:-0 2 * * *}
-      - VW_BACKUP_KEEP_DAYS=${BACKUP_KEEP_DAYS:-14}
-      - TIMESTAMP=${BACKUP_TIMESTAMP:-true}
-      - TZ=${TZ:-America/Mexico_City}
-      - UID=1000
-      - GID=1000
-      # Opciones adicionales de backup
-      - DELETE_AFTER=${DELETE_AFTER:-0}
-      - BACKUP_ON_STARTUP=${BACKUP_ON_STARTUP:-true}
+      - CRON=${BACKUP_SCHEDULE:-0 2 * * *}
+      - BACKUP_KEEP_DAYS=${BACKUP_KEEP_DAYS:-14}
+      - TIMEZONE=${TZ:-America/Mexico_City}
+      - ZIP_ENABLE=true
+      - ZIP_PASSWORD=${BACKUP_ZIP_PASSWORD}
+      - BACKUP_FILE_SUFFIX=%Y%m%d_%H%M%S
+      # Rclone para backup remoto (opcional)
+      - RCLONE_REMOTE_NAME=${RCLONE_REMOTE_NAME}
+      - RCLONE_REMOTE_DIR=${RCLONE_REMOTE_DIR}
     volumes:
-      - ./vw-data:/data:ro
-      - ./vw-backups:/backups
+      - vaultwarden-data:/bitwarden/data:ro
+      - vaultwarden-backups:/bitwarden/backup
+      - ./rclone:/config/rclone
     networks:
-      - vaultwarden-network
+      - dokploy-network
+
+volumes:
+  vaultwarden-data:
+    driver: local
+  vaultwarden-backups:
+    driver: local
 
 networks:
-  vaultwarden-network:
-    driver: bridge
+  dokploy-network:
+    external: true

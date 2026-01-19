@@ -1,236 +1,299 @@
-# Vaultwarden Setup con Docker Compose
+# Vaultwarden Setup - Dokploy + Cloudflare Zero Trust
 
-Configuración completa de Vaultwarden (servidor de Bitwarden auto-hospedado) con sistema de backups automáticos.
+Configuración de Vaultwarden (servidor de Bitwarden auto-hospedado) optimizada para **Dokploy** con acceso seguro mediante **Cloudflare Zero Trust + WARP**.
 
 ## 📋 Características
 
 - **Vaultwarden**: Servidor compatible con Bitwarden para gestión de contraseñas
-- **Backups Automáticos**: Sistema de respaldo programado con vaultwarden-backup
-- **Docker Compose**: Fácil despliegue y gestión
-- **Configuración Flexible**: Variables de entorno personalizables
+- **Backups Automáticos**: Sistema de respaldo programado con encriptación
+- **Dokploy Ready**: Configuración lista para desplegar en Dokploy
+- **Cloudflare Zero Trust**: Acceso seguro sin exponer puertos públicos
+- **WARP Client**: Conexión privada desde cualquier dispositivo
 
-## 🚀 Inicio Rápido
+## 🏗️ Arquitectura
 
-### 1. Configuración Inicial
-
-```bash
-# Copiar archivo de ejemplo
-cp .env.example .env
-
-# Editar configuración
-nano .env
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                    Cloudflare Zero Trust                         │
+│  ┌─────────────────────────────────────────────────────────────┐│
+│  │                    Access Application                        ││
+│  │         vault.internal.example.com                           ││
+│  └─────────────────────────────────────────────────────────────┘│
+│                              │                                   │
+│                    Cloudflare Tunnel                             │
+└──────────────────────────────┬──────────────────────────────────┘
+                               │
+                    ┌──────────▼──────────┐
+                    │      Dokploy        │
+                    │  ┌────────────────┐ │
+                    │  │  Vaultwarden   │ │
+                    │  │   (puerto 80)  │ │
+                    │  └────────────────┘ │
+                    │  ┌────────────────┐ │
+                    │  │    Backup      │ │
+                    │  │   Service      │ │
+                    │  └────────────────┘ │
+                    └─────────────────────┘
+                               ▲
+                               │ WARP Client
+                    ┌──────────┴──────────┐
+                    │   Dispositivos      │
+                    │ (Mac, Windows, iOS) │
+                    └─────────────────────┘
 ```
 
-### 2. Generar Token de Admin
+## 🚀 Despliegue en Dokploy
 
-Genera un token seguro para el panel de administración:
+### 1. Crear proyecto en Dokploy
 
-```bash
-openssl rand -base64 48
-```
+1. Accede a tu panel de Dokploy
+2. Crea un nuevo proyecto: **Vaultwarden**
+3. Añade un servicio de tipo **Compose**
+4. Sube o pega el contenido del `docker-compose.yml`
 
-Copia el resultado y pégalo en la variable `ADMIN_TOKEN` del archivo `.env`.
+### 2. Configurar Variables de Entorno
 
-### 3. Configurar Variables
-
-Edita el archivo `.env` y configura al menos:
-
-- `DOMAIN`: Tu dominio (ej: https://vault.tudominio.com)
-- `ADMIN_TOKEN`: Token generado en el paso anterior
-- `VAULTWARDEN_PORT`: Puerto donde correrá Vaultwarden (default: 8080)
-
-### 4. Iniciar Servicios
-
-```bash
-# Crear directorios necesarios
-mkdir -p vw-data vw-backups
-
-# Iniciar servicios
-docker compose up -d
-
-# Ver logs
-docker compose logs -f
-```
-
-## 🔧 Configuración
-
-### Variables de Entorno Principales
-
-| Variable | Descripción | Valor por Defecto |
-|----------|-------------|-------------------|
-| `DOMAIN` | URL pública de tu instancia | `https://vault.example.com` |
-| `VAULTWARDEN_PORT` | Puerto del host | `8080` |
-| `ADMIN_TOKEN` | Token para panel admin | *(requerido)* |
-| `SIGNUPS_ALLOWED` | Permitir registro de usuarios | `true` |
-| `INVITATIONS_ALLOWED` | Permitir invitaciones | `true` |
-| `BACKUP_SCHEDULE` | Programación de backups (cron) | `0 2 * * *` (2 AM) |
-| `BACKUP_KEEP_DAYS` | Días que se conservan los backups | `14` |
-
-### Configuración de Backups
-
-Los backups se ejecutan automáticamente según el cron configurado en `BACKUP_SCHEDULE`:
-
-- `0 2 * * *`: Cada día a las 2 AM
-- `0 */6 * * *`: Cada 6 horas
-- `0 0 * * 0`: Cada domingo a medianoche
-
-Los backups se almacenan en el directorio `./vw-backups/`.
-
-### Configuración SMTP (Opcional)
-
-Para habilitar notificaciones por email, descomenta y configura las variables SMTP en `.env`:
+En Dokploy, ve a **Environment** y configura:
 
 ```env
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_FROM=noreply@example.com
-SMTP_USERNAME=your_email@gmail.com
-SMTP_PASSWORD=your_app_password
+# Requeridas
+DOMAIN=https://vault.tudominio.com
+ADMIN_TOKEN=<genera con: openssl rand -base64 48>
+
+# Recomendadas
+SIGNUPS_ALLOWED=false
+BACKUP_ZIP_PASSWORD=<contraseña-segura-para-backups>
+TZ=America/Mexico_City
 ```
 
-## 📁 Estructura de Directorios
+### 3. Crear Red de Dokploy
+
+Antes de desplegar, asegúrate de que existe la red `dokploy-network`:
+
+```bash
+docker network create dokploy-network
+```
+
+> **Nota**: Dokploy normalmente ya tiene esta red creada.
+
+### 4. Desplegar
+
+Click en **Deploy** en Dokploy.
+
+## 🔐 Configuración de Cloudflare Zero Trust
+
+### Paso 1: Crear Tunnel en Cloudflare
+
+1. Ve a [Cloudflare Zero Trust Dashboard](https://one.dash.cloudflare.com/)
+2. Navega a **Networks** → **Tunnels**
+3. Crea un nuevo tunnel: `vaultwarden-tunnel`
+4. Copia el token del tunnel
+
+### Paso 2: Configurar Tunnel en tu Servidor
+
+Puedes añadir cloudflared como servicio adicional en Dokploy o ejecutarlo directamente:
+
+```bash
+# Opción 1: Docker run
+docker run -d --name cloudflared \
+  --network dokploy-network \
+  --restart unless-stopped \
+  cloudflare/cloudflared:latest tunnel run \
+  --token <TU_TUNNEL_TOKEN>
+```
+
+### Paso 3: Configurar Public Hostname
+
+En el dashboard de Cloudflare Zero Trust:
+
+1. Ve a tu tunnel → **Public Hostname**
+2. Añade un hostname:
+   - **Subdomain**: `vault`
+   - **Domain**: `tudominio.com`
+   - **Service**: `http://vaultwarden:80`
+
+### Paso 4: Configurar Access Application
+
+1. Ve a **Access** → **Applications**
+2. Crea una nueva aplicación:
+   - **Name**: Vaultwarden
+   - **Domain**: `vault.tudominio.com`
+   - **Application Type**: Self-hosted
+
+3. Configura políticas de acceso:
+   - **Policy Name**: Allow Team Members
+   - **Action**: Allow
+   - **Include**: Emails ending in `@tuempresa.com` o usuarios específicos
+
+### Paso 5: Configurar WARP Client
+
+Para acceso desde dispositivos:
+
+1. Ve a **Settings** → **WARP Client**
+2. Configura **Device enrollment permissions**
+3. Habilita **Gateway with WARP**
+
+#### Instalación WARP en dispositivos:
+
+- **macOS/Windows**: Descarga desde [1.1.1.1](https://1.1.1.1/)
+- **iOS/Android**: Busca "1.1.1.1" en la app store
+
+#### Conectar dispositivo:
+
+1. Abre WARP/1.1.1.1
+2. Ve a configuración → **Account**
+3. Login con tu organización de Zero Trust
+4. Activa WARP
+
+## 📁 Estructura del Proyecto
 
 ```
 vaultwarden-setup/
 ├── docker-compose.yml      # Configuración de servicios
-├── .env                     # Variables de entorno (crear desde .env.example)
-├── .env.example            # Plantilla de configuración
-├── vw-data/                # Datos de Vaultwarden (base de datos, archivos)
-└── vw-backups/             # Backups automáticos
+├── .env.example            # Plantilla de variables
+├── .gitignore              # Archivos ignorados
+├── README.md               # Esta documentación
+├── rclone/                 # Configuración de rclone (para backups remotos)
+└── scripts/
+    ├── generate-admin-token.sh
+    ├── manual-backup.sh
+    └── restore-backup.sh
 ```
 
-## 🔐 Panel de Administración
+## 🔧 Configuración
 
-Una vez iniciado, accede al panel de admin en:
+### Variables de Entorno
 
+| Variable | Descripción | Requerida |
+|----------|-------------|-----------|
+| `DOMAIN` | URL de acceso (con https) | ✅ |
+| `ADMIN_TOKEN` | Token para panel admin | ✅ |
+| `SIGNUPS_ALLOWED` | Permitir registro público | ❌ |
+| `BACKUP_ZIP_PASSWORD` | Contraseña para encriptar backups | Recomendado |
+| `BACKUP_SCHEDULE` | Cron para backups (default: 2 AM) | ❌ |
+| `BACKUP_KEEP_DAYS` | Retención de backups (default: 14) | ❌ |
+
+### Backup Remoto con Rclone
+
+Para guardar backups en la nube (ej: Cloudflare R2, S3):
+
+```bash
+# Configurar rclone interactivamente
+docker run --rm -it \
+  -v $(pwd)/rclone:/config/rclone \
+  ttionya/vaultwarden-backup:latest \
+  rclone config
 ```
-http://localhost:8080/admin
-```
 
-Usa el `ADMIN_TOKEN` configurado en `.env` para acceder.
+Después añade las variables:
+
+```env
+RCLONE_REMOTE_NAME=r2
+RCLONE_REMOTE_DIR=/vaultwarden-backups
+```
 
 ## 🔄 Comandos Útiles
 
+### En Dokploy
+
+La mayoría de operaciones se hacen desde el panel de Dokploy:
+- **Logs**: Ver en la pestaña "Logs"
+- **Restart**: Botón "Redeploy"
+- **Variables**: Pestaña "Environment"
+
+### Vía Terminal (si tienes acceso SSH)
+
 ```bash
-# Iniciar servicios
-docker compose up -d
-
-# Detener servicios
-docker compose down
-
-# Ver logs en tiempo real
-docker compose logs -f
-
-# Ver logs de un servicio específico
-docker compose logs -f vaultwarden
-
-# Reiniciar servicios
-docker compose restart
-
-# Actualizar imágenes
-docker compose pull
-docker compose up -d
+# Ver logs
+docker logs -f vaultwarden
 
 # Backup manual
-docker compose exec vaultwarden-backup /backup.sh
+docker exec vaultwarden-backup /app/backup.sh
+
+# Ver backups
+docker exec vaultwarden-backup ls -la /bitwarden/backup
+
+# Acceder al contenedor
+docker exec -it vaultwarden /bin/sh
 ```
 
 ## 💾 Restauración de Backup
 
-Para restaurar desde un backup:
-
 ```bash
-# 1. Detener servicios
-docker compose down
+# 1. Detener servicios (desde Dokploy o CLI)
+docker stop vaultwarden vaultwarden-backup
 
-# 2. Restaurar datos
-cd vw-backups
-# Encuentra el backup deseado (ej: backup-2026-01-19_02-00-00.tar.gz)
-tar -xzf backup-YYYY-MM-DD_HH-MM-SS.tar.gz -C ../vw-data/
+# 2. Listar backups disponibles
+docker run --rm -v vaultwarden-setup_vaultwarden-backups:/backup alpine ls -la /backup
 
-# 3. Reiniciar servicios
-docker compose up -d
+# 3. Restaurar (ajusta el nombre del archivo)
+docker run --rm \
+  -v vaultwarden-setup_vaultwarden-data:/data \
+  -v vaultwarden-setup_vaultwarden-backups:/backup \
+  alpine sh -c "cd /data && unzip -o /backup/backup-YYYYMMDD_HHMMSS.zip"
+
+# 4. Reiniciar servicios
+docker start vaultwarden vaultwarden-backup
 ```
 
-## 🌐 Uso con Reverse Proxy (Nginx/Traefik)
+## 🔒 Seguridad - Best Practices
 
-Si usas un reverse proxy, recuerda:
+### Cloudflare Zero Trust
 
-1. Configurar `DOMAIN` con tu URL completa (https)
-2. Habilitar WebSocket en tu proxy
-3. Configurar SSL/TLS en el proxy
+- ✅ **No expongas puertos públicos** - Solo acceso via WARP/Tunnel
+- ✅ **Configura políticas de acceso estrictas** - Solo usuarios autorizados
+- ✅ **Habilita autenticación de dos factores** en Cloudflare
+- ✅ **Revisa logs de acceso** regularmente en Zero Trust
 
-Ejemplo de configuración Nginx:
+### Vaultwarden
 
-```nginx
-location / {
-    proxy_pass http://localhost:8080;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-}
+- ✅ **`SIGNUPS_ALLOWED=false`** - Desactiva registro público
+- ✅ **Admin token fuerte** - Usa `openssl rand -base64 48`
+- ✅ **Backups encriptados** - Configura `BACKUP_ZIP_PASSWORD`
+- ✅ **Backups remotos** - No solo locales
 
-location /notifications/hub {
-    proxy_pass http://localhost:8080;
-    proxy_set_header Upgrade $http_upgrade;
-    proxy_set_header Connection "upgrade";
-}
-```
+### Dokploy
 
-## 🔒 Seguridad
-
-### Recomendaciones:
-
-1. **Cambia SIGNUPS_ALLOWED a false** después de crear tus cuentas
-2. **Usa contraseñas fuertes** para el admin token
-3. **Configura HTTPS** usando un reverse proxy con Let's Encrypt
-4. **Mantén actualizado** ejecutando `docker compose pull` regularmente
-5. **Protege tus backups** y guárdalos en ubicación segura
-6. **Configura firewall** para limitar acceso al puerto
-
-## 📝 Notas
-
-- La base de datos por defecto es SQLite (almacenada en `vw-data/db.sqlite3`)
-- Los archivos adjuntos se guardan en `vw-data/attachments/`
-- Los backups incluyen la base de datos completa y archivos adjuntos
-- El timezone por defecto es America/Mexico_City (configurable con `TZ`)
+- ✅ Mantén Dokploy actualizado
+- ✅ Usa HTTPS para el panel de Dokploy
+- ✅ Limita acceso al servidor
 
 ## 🆘 Solución de Problemas
 
 ### El servicio no inicia
 
 ```bash
-# Verificar logs
-docker compose logs
-
-# Verificar puertos
-sudo lsof -i :8080
+# Verificar logs en Dokploy o:
+docker logs vaultwarden
 ```
 
-### Permisos de archivos
+### No puedo acceder via WARP
+
+1. Verifica que WARP esté conectado (icono verde)
+2. Verifica que el tunnel esté activo en Cloudflare
+3. Revisa la configuración del hostname
+
+### Backup no funciona
 
 ```bash
-# Ajustar permisos
-sudo chown -R 1000:1000 vw-data vw-backups
+# Ver logs del backup
+docker logs vaultwarden-backup
+
+# Ejecutar backup manual para debug
+docker exec vaultwarden-backup /app/backup.sh
 ```
 
-### Backup no se ejecuta
+### Error de red "dokploy-network"
 
 ```bash
-# Verificar logs del backup
-docker compose logs vaultwarden-backup
-
-# Ejecutar backup manual
-docker compose exec vaultwarden-backup /backup.sh
+# Crear la red si no existe
+docker network create dokploy-network
 ```
 
 ## 📚 Recursos
 
 - [Vaultwarden Wiki](https://github.com/dani-garcia/vaultwarden/wiki)
 - [Vaultwarden Backup](https://github.com/ttionya/vaultwarden-backup)
+- [Cloudflare Zero Trust Docs](https://developers.cloudflare.com/cloudflare-one/)
+- [Dokploy Documentation](https://dokploy.com/docs)
 - [Bitwarden Help](https://bitwarden.com/help/)
-
-## 📄 Licencia
-
-Este setup es de código abierto. Vaultwarden y sus componentes mantienen sus respectivas licencias.
