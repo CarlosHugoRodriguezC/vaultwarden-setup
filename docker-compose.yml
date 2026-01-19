@@ -1,17 +1,19 @@
 services:
-  # Servicio de inicialización - Configura Rclone automáticamente desde env vars
+  # Servicio de inicialización - Configura Rclone desde env vars
   init-r2:
-    image: alpine:latest
+    build:
+      context: .
+      dockerfile: Dockerfile.init-r2
     container_name: vaultwarden-init-r2
     restart: "no"
-    entrypoint: /scripts/init-rclone.sh
     environment:
       - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
       - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
       - R2_SECRET_ACCESS_KEY=${R2_SECRET_ACCESS_KEY}
+      - R2_BUCKET_NAME=${R2_BUCKET_NAME}
+      - RCLONE_REMOTE_NAME=${RCLONE_REMOTE_NAME}
     volumes:
-      - vaultwarden-rclone:/config/rclone
-      - ./scripts/init-rclone.sh:/scripts/init-rclone.sh:ro
+      - vaultwarden-rclone:/root/.config/rclone
     networks:
       - vaultwarden-network
 
@@ -103,6 +105,7 @@ services:
       - RCLONE_REMOTE_NAME=${RCLONE_REMOTE_NAME:-r2}
       - RCLONE_REMOTE_DIR=${RCLONE_REMOTE_DIR:-/vaultwarden-backups}
       - RCLONE_REMOTE_ENABLE=true
+      - RCLONE_CONFIG=/root/.config/rclone/rclone.conf
       # Retención de backups
       - BACKUP_KEEP_DAYS=${BACKUP_KEEP_DAYS:-14}
       # Ping de salud (opcional)
@@ -110,7 +113,7 @@ services:
     volumes:
       - vaultwarden-data:/bitwarden/data:ro
       - vaultwarden-backups:/bitwarden/backup
-      - vaultwarden-rclone:/config/rclone
+      - vaultwarden-rclone:/root/.config/rclone
     networks:
       - vaultwarden-network
 

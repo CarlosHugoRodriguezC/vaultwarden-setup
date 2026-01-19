@@ -1,0 +1,11 @@
+FROM alpine:latest
+
+RUN apk add --no-cache rclone bash
+
+WORKDIR /app
+
+COPY scripts/init-rclone.sh /app/init-rclone.sh
+
+RUN chmod +x /app/init-rclone.sh
+
+ENTRYPOINT ["/app/init-rclone.sh"]
