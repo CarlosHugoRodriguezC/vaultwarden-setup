@@ -59,6 +59,23 @@ Configuración de Vaultwarden (servidor de Bitwarden auto-hospedado) optimizada 
 
 > **Nota para Dokploy**: Si necesitas integrar con la red `dokploy-network` existente, edita el `docker-compose.yml` y cambia `vaultwarden-network` por `dokploy-network` y marca la red como `external: true`
 
+### Opción Rápida (Local o VPS):
+
+```bash
+# Clonar repositorio
+git clone https://github.com/CarlosHugoRodriguezC/vaultwarden-setup.git
+cd vaultwarden-setup
+
+# Ejecutar start.sh (configura automáticamente todo)
+./start.sh
+```
+
+El script `start.sh` hace automáticamente:
+- ✅ Crea `.env` desde `.env.example` si no existe
+- ✅ Genera un `ADMIN_TOKEN` seguro
+- ✅ Configura Cloudflare R2 automáticamente
+- ✅ Inicia todos los servicios
+
 ### 2. Configurar Variables de Entorno
 
 En Dokploy, ve a **Environment** y configura:
@@ -67,12 +84,21 @@ En Dokploy, ve a **Environment** y configura:
 # Requeridas
 DOMAIN=https://vault.tudominio.com
 ADMIN_TOKEN=<genera con: openssl rand -base64 48>
+CLOUDFLARE_TUNNEL_TOKEN=<obtén en Cloudflare>
+
+# R2 (si usas backups remotos)
+R2_ACCOUNT_ID=
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_BUCKET_NAME=vaultwarden-backups
 
 # Recomendadas
 SIGNUPS_ALLOWED=false
 BACKUP_ZIP_PASSWORD=<contraseña-segura-para-backups>
 TZ=America/Mexico_City
 ```
+
+> **Para start.sh local**: El script configura automáticamente R2 si están presentes las credenciales
 
 ### 3. Crear Red de Docker
 
@@ -168,11 +194,13 @@ Para acceso desde dispositivos:
 ```
 vaultwarden-setup/
 ├── docker-compose.yml      # Configuración de servicios
+├── start.sh                # Script de inicio rápido (configura R2 automáticamente)
 ├── .env.example            # Plantilla de variables
 ├── .gitignore              # Archivos ignorados
 ├── README.md               # Esta documentación
-├── rclone/                 # Configuración de rclone (para backups remotos)
 └── scripts/
+    ├── init-r2-auto.sh     # Configuración automática de R2
+    ├── setup-r2.sh         # Configuración manual de R2
     ├── generate-admin-token.sh
     ├── manual-backup.sh
     └── restore-backup.sh
